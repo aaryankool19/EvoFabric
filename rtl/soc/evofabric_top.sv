@@ -37,6 +37,8 @@ module evofabric_top (
     logic [31:0] slot_o0, slot_o1, slot_o2, slot_o3, slot_cycles;
     logic [3:0] slot_id;
     logic mismatch, fallback_forced;
+    logic [4:1] disabled_accels_d;
+    logic       perf_failed_event;
     logic [31:0] checked_o0, checked_o1, checked_o2, checked_o3;
     logic [31:0] total_cycles, calls, failures, last_latency, best_latency;
     logic [3:0] last_selected;
@@ -75,7 +77,7 @@ module evofabric_top (
 
     performance_counters u_perf (
         .clk(clk), .rst_n(rst_n), .clear(clear_perf), .op_start(start_request),
-        .op_complete(ctrl_complete), .op_failed(mismatch || slot_error), .selected_accel(selected_accel),
+        .op_complete(ctrl_complete), .op_failed(perf_failed_event), .selected_accel(selected_accel),
         .latency_value(use_fallback ? 32'd1 : slot_cycles), .total_cycles(total_cycles),
         .calls(calls), .failures(failures), .last_selected_accel(last_selected),
         .last_latency(last_latency), .best_latency(best_latency)
@@ -95,10 +97,14 @@ module evofabric_top (
             irq_done <= 1'b0;
             start_request <= 1'b0;
             clear_perf <= 1'b0;
+            disabled_accels_d <= 4'b0000;
+            perf_failed_event <= 1'b0;
         end else begin
             start_request <= 1'b0;
             clear_perf <= 1'b0;
             irq_done <= 1'b0;
+            perf_failed_event <= |(disabled_accels & ~disabled_accels_d);
+            disabled_accels_d <= disabled_accels;
 
             if (accel_write) begin
                 case (local_addr)
@@ -137,7 +143,7 @@ module evofabric_top (
             REG_OUTPUT1: accel_rdata = result_1;
             REG_OUTPUT2: accel_rdata = result_2;
             REG_OUTPUT3: accel_rdata = result_3;
-            REG_STATUS:  accel_rdata = {12'd0, disabled_accels, selected_accel, slot_busy, use_fallback, fallback_forced, irq_done, 10'd0, op_active, slot_error};
+            REG_STATUS:  accel_rdata = {12'd0, disabled_accels, selected_accel, slot_busy, use_fallback, fallback_forced, irq_done, 6'd0, op_active, slot_error};
             default:     accel_rdata = 32'd0;
         endcase
 
